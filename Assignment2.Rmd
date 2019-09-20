@@ -1,0 +1,148 @@
+---
+title: "Assignment2"
+date: "9/20/2019"
+output:
+  html_document: default
+---
+
+## Quantification of the Effect of Storms and Weather Events on Health and Finance
+
+# Synopsis of study:
+
+This assignment involves the data collected by the U.S. National Oceanic and Atmospheric Administration (NOAA). This database tracks characteristics of storms and weather events and related effects in the United States. Since these have a massive impact on the life so preventing such results to the possible extent is of great concern.
+
+# Questions:
+
+It will be used to answer the following questions:
+        1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+        2. Across the United States, which types of events have the greatest economic consequences?
+
+## Preprocessing the data
+
+The data was downloaded from the course website, and preprocessed, analyzed, and reported using R. The results file contains all the explanations for methods, estimates, and results.
+
+# Loading the data
+
+The data will be loaded from the following location:
+
+```{r, echo=TRUE}
+data <- read.csv("/Users/ziaa/Desktop/Reproducible_research/repdata_data_StormData.csv")
+stormdata <- data[c("EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+
+# To see the type and format of data
+
+str(data)
+
+# To look at data
+head(stormdata)
+
+tail(stormdata)
+
+```
+
+
+##Setting Up required libraries:
+
+```{r, echo=TRUE}
+
+library(plyr)
+library(ggplot2)
+library(dplyr)
+
+```
+
+## Data cleaning:
+
+To clean the data, we need to convert two variables in required format i.e., from factor to numerical. We can see from the structure of data that Property Damage Exponent (PROPDMGEXP) and Crop Damage Exponent(CROPDMGEXP) contain the code for the exponent of damage. We need to convert these variables into a numerical value.
+
+```{r, echo=TRUE}
+stormdata$PROPDMGEXP<- mapvalues(stormdata$PROPDMGEXP, from = c("K", "M","", "B", "m", "+", "0", "5", "6", "?", "4", "2", "3", "h", "7", "H", "-", "1", "8"), to = c(10^3, 10^6, 1, 10^9, 10^6, 0,1,10^5, 10^6, 0, 10^4, 10^2, 10^3, 10^2, 10^7, 10^2, 0, 10, 10^8))
+stormdata$PROPDMGEXP<- as.numeric(as.character(stormdata$PROPDMGEXP))
+stormdata$PROPDMGTOTAL<- (stormdata$PROPDMG * stormdata$PROPDMGEXP)/1000000000
+
+stormdata$CROPDMGEXP<- mapvalues(stormdata$CROPDMGEXP, from = c("","M", "K", "m", "B", "?", "0", "k","2"), to = c(1,10^6, 10^3, 10^6, 10^9, 0, 1, 10^3, 10^2))
+stormdata$CROPDMGEXP<- as.numeric(as.character(stormdata$CROPDMGEXP))
+stormdata$CROPDMGTOTAL<- (stormdata$CROPDMG * stormdata$CROPDMGEXP)/1000000000
+
+stormdata$DAMAGETOTAL<- stormdata$PROPDMGTOTAL + stormdata$CROPDMGEXP
+
+detach(package:plyr)
+
+```
+
+## Organizing data:
+
+After cleaning if we see the data, we will notice that there are many related natural weather events in the ENVTYPE column. So we can group these according to their type. For this, we can use grepl function, as shown below:
+
+```{r, echo=TRUE}
+storm_type<- stormdata %>%
+  mutate(evtypegrp = ifelse(grepl("LIGHTNING|LIGNTNING", EVTYPE), "LIGHTNING", ifelse(grepl("HAIL|RAIN|HEAVY RAIN", EVTYPE), "HAIL", ifelse(grepl("FLOOD|WET|FLD", EVTYPE), "FLOOD", ifelse(grepl("SNOW|WINTER|WINTRY|BLIZZARD|SLEET|COLD|ICE|FREEZE|AVALANCHE|ICY", EVTYPE), "WINTER STORM",
+ifelse(grepl("TORNADO|FUNNEL", EVTYPE), "TORNADO",
+ifelse(grepl("WIND|STORM|THUNDER|TSTM|TROPICAL +STORM", EVTYPE), "THUNDERSTORM",
+ifelse(grepl("FIRE", EVTYPE), "FIRE",
+ifelse(grepl("FOG|VISIBILITY|DARK|DUST", EVTYPE), "FOG",
+ifelse(grepl("HURRICAN|WAVE|SURF|SURGE|TIDE|TSUNAMI|CURRENT|SWELL", EVTYPE), "HURRICANE(TYPHOON)",
+ifelse(grepl("HEAT|HIGH +TEMP|RECORD +TEMP|WARM|DRY", EVTYPE), "HEAT", "OTHER")))))))))))
+
+```
+
+## Results:
+
+After processing and cleaning data, now we can analyze the data. For this purpose, we need to summarize the data to answer the question. First, we will create a summary of the four different damage types.
+
+```{r, echo=TRUE}
+damage_sum<- storm_type %>% group_by(evtypegrp) %>% summarise(damage = sum(DAMAGETOTAL), property= sum(PROPDMGTOTAL), crops = sum(CROPDMGTOTAL), fatalities = sum(FATALITIES), injuries = sum(INJURIES))
+
+```
+
+## Question 1: Types of events that are most harmful with respect to population health?
+
+To answer this, we will create graphs that show the events resulting in the high number of deaths and injuries in the United States.
+
+```{r, echo=TRUE}
+par(mfrow=c(1,2))
+par(mar=c(8,4,2,2))
+ggplot(damage_sum, aes(x = reorder(evtypegrp, +fatalities), y = fatalities, fill = fatalities)) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_light() +
+        labs(title = "Fatalities by Event Type", 
+             subtitle = "Top 10 Weather Events from 1996 - 2011", 
+             x = "Weather Event",
+             y = "Number of Fatalities")
+
+ggplot(damage_sum, aes(x =reorder(evtypegrp, +injuries), y = injuries, fill = injuries)) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_light() +
+        labs(title = "Injuries by Event Type", 
+             subtitle = "Top 10 Weather Events from 1996 - 2011", 
+             x = "Weather Event",
+             y = "Number of Injuries")
+
+```
+## Question 2: Types of events that have the greatest economic consequences?
+
+To answer this, we will create a graph again that show the events resulting in severe economic damage in the United States. As we can only have three figures for this assignment. We can use the "par" function to make multiple panel plots, or we can combine the financial damage in one graph. 
+
+```{r, echo=TRUE}
+financialdamage <-head(damage_sum[order(damage_sum$damage, decreasing=TRUE),],5)
+property <- financialdamage %>% mutate(damage_type="Property", damage_amount=property)
+crops <- financialdamage %>% mutate(damage_type="Crops", damage_amount=crops)
+combine_damage <- rbind(property,crops)
+
+ggplot(combine_damage, aes(evtypegrp, damage_amount, fill=factor(damage_type))) +
+  geom_bar(stat = "identity") + 
+        scale_fill_manual("Damage", values = c("Crops" = "light blue", "Property" = "dark blue")) +
+        theme_light() +
+  labs(title = "Total Financial Losses by Event Type", 
+             subtitle = "Top 10 Weather Events from 1996 - 2011",
+             x = "Weather Event",
+             y = "Amount of Damage")  +
+  theme_gray(base_size = 10, base_family = "")
+
+```
+
+## Conclusion:
+
+We can see from the data that organized, and clean data is more easy to analyze. The results of this assignment clearly show that the weather events affect the health and economy, but the type of event that results in more damage is different for both, i.e., health & finance.
